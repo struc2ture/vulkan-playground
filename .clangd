@@ -1,0 +1,11 @@
+CompileFlags:
+    Add: [
+        "-I/opt/homebrew/include",
+        "-Wall",
+        "-Wextra",
+        "-Wno-unused-function",
+        "-Wno-unused-parameter",
+        "-Wno-unused-variable",
+        "-xc",
+        "-std=c99"
+    ]
