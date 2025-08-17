@@ -17,7 +17,7 @@ bin/playground: src/main.cpp
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(IMGUI_SRC) -o $@
 
 run: build
-	bin/playground
+	lldb bin/playground -o run
 
 clean:
 	rm -rf bin
