@@ -3,6 +3,7 @@
 
 #include <imgui.h>
 #include <backends/imgui_impl_vulkan.h>
+#include <backends/imgui_impl_glfw.h>
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
@@ -187,6 +188,22 @@ static void setup_vulkan_window(ImGui_ImplVulkanH_Window *wd, VkSurfaceKHR surfa
     ImGui_ImplVulkanH_CreateOrResizeWindow(g_Instance, g_PhysicalDevice, g_Device, wd, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);
 }
 
+static void cleanup_vulkan()
+{
+    vkDestroyDescriptorPool(g_Device, g_DescriptorPool, g_Allocator);
+
+    auto f_vkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(g_Instance, "vkDestroyDebugReportCallbackEXT");
+    f_vkDestroyDebugReportCallbackEXT(g_Instance, g_DebugReport, g_Allocator);
+
+    vkDestroyDevice(g_Device, g_Allocator);
+    vkDestroyInstance(g_Instance, g_Allocator);
+}
+
+static void cleanup_vulkan_window()
+{
+    ImGui_ImplVulkanH_DestroyWindow(g_Instance, g_Device, &g_MainWindowData, g_Allocator);
+}
+
 int main()
 {
     glfwInit();
@@ -218,7 +235,18 @@ int main()
         glfwPollEvents();
     }
 
+    // Cleanup
+    err = vkDeviceWaitIdle(g_Device);
+    check_vk_result(err);
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
+    cleanup_vulkan_window();
+    cleanup_vulkan();
+
     glfwDestroyWindow(window);
     glfwTerminate();
+
     return 0;
 }
