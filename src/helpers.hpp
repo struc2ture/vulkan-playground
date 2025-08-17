@@ -18,3 +18,12 @@
         if (ERR < 0) abort(); \
     } \
 } while (0)
+
+static void check_vk_result_fn(VkResult err)
+{
+    if (err == VK_SUCCESS)
+        return;
+    fprintf(stderr, "[vulkan] Error: VkResult = %d\n", err);
+    if (err < 0)
+        abort();
+}
