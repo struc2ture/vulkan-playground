@@ -19,7 +19,10 @@ static VkDevice g_Device = VK_NULL_HANDLE;
 static VkQueue g_Queue = VK_NULL_HANDLE;
 static VkDescriptorPool g_DescriptorPool = VK_NULL_HANDLE;
 
-bool is_extension_available(const ImVector<VkExtensionProperties>& properties, const char *extension)
+static ImGui_ImplVulkanH_Window g_MainWindowData;
+static uint32_t g_MinImageCount = 2;
+
+static bool is_extension_available(const ImVector<VkExtensionProperties>& properties, const char *extension)
 {
     for (const VkExtensionProperties& p: properties)
     {
@@ -38,7 +41,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_report(VkDebugReportFlagsEXT flags, 
     return VK_FALSE;
 }
 
-void setup_vulkan(ImVector<const char *> instance_extensions)
+static void setup_vulkan(ImVector<const char *> instance_extensions)
 {
     VkResult err;
 
@@ -154,6 +157,36 @@ void setup_vulkan(ImVector<const char *> instance_extensions)
     }
 }
 
+static void setup_vulkan_window(ImGui_ImplVulkanH_Window *wd, VkSurfaceKHR surface, int width, int height)
+{
+    wd->Surface = surface;
+
+    // Check for WSI support
+    VkBool32 res;
+    vkGetPhysicalDeviceSurfaceSupportKHR(g_PhysicalDevice, g_QueueFamily, wd->Surface, &res);
+    if (res != VK_TRUE)
+    {
+        fatal("No WSI support on physical device 0\n");
+    }
+
+    // Select surface format
+    const VkFormat request_surface_image_format[] = { VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM };
+    const VkColorSpaceKHR request_surface_color_space = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+    wd->SurfaceFormat = ImGui_ImplVulkanH_SelectSurfaceFormat(g_PhysicalDevice,
+                                                              wd->Surface, 
+                                                              request_surface_image_format,
+                                                              (size_t)IM_ARRAYSIZE(request_surface_image_format),
+                                                              request_surface_color_space);
+
+    // Select present mode (unlimited frame rate)
+    VkPresentModeKHR present_modes[] = { VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_KHR };
+    wd->PresentMode = ImGui_ImplVulkanH_SelectPresentMode(g_PhysicalDevice, wd->Surface, present_modes, IM_ARRAYSIZE(present_modes));
+
+    // Create Swapchain, Render pass, Framebuffer, etc.
+    IM_ASSERT(g_MinImageCount >= 2);
+    ImGui_ImplVulkanH_CreateOrResizeWindow(g_Instance, g_PhysicalDevice, g_Device, wd, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);
+}
+
 int main()
 {
     glfwInit();
@@ -168,6 +201,17 @@ int main()
         extensions.push_back(glfw_extensions[i]);
     }
     setup_vulkan(extensions);
+
+    // Create window surface
+    VkSurfaceKHR surface;
+    VkResult err = glfwCreateWindowSurface(g_Instance, window, g_Allocator, &surface);
+    check_vk_result(err);
+
+    // Create framebuffers
+    int w, h;
+    glfwGetFramebufferSize(window, &w, &h);
+    ImGui_ImplVulkanH_Window *wd = &g_MainWindowData;
+    setup_vulkan_window(wd, surface, w, h);
 
     while (!glfwWindowShouldClose(window))
     {
