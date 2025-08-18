@@ -24,6 +24,7 @@ static VkPipelineCache g_PipelineCache = VK_NULL_HANDLE;
 static ImGui_ImplVulkanH_Window g_MainWindowData;
 static uint32_t g_MinImageCount = 2;
 static bool g_SwapChainRebuild = false;
+static bool g_VSyncEnabled = false;
 
 static bool is_extension_available(const ImVector<VkExtensionProperties>& properties, const char *extension)
 {
@@ -42,6 +43,17 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_report(VkDebugReportFlagsEXT flags, 
     (void)flags; (void)object; (void)location; (void)messageCode; (void)pUserData; (void)pLayerPrefix; // Unused arguments
     fprintf(stderr, "[vulkan] Debug report from ObjectType: %i\nMessage: %s\n\n", objectType, pMessage);
     return VK_FALSE;
+}
+
+static void set_present_mode(bool vsync, ImGui_ImplVulkanH_Window *wd)
+{
+    static VkPresentModeKHR present_modes_free[] = { VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_KHR };
+    static VkPresentModeKHR present_modes_vsync[] = { VK_PRESENT_MODE_FIFO_KHR };
+
+    wd->PresentMode = ImGui_ImplVulkanH_SelectPresentMode(g_PhysicalDevice,
+                                                          wd->Surface,
+                                                          vsync ? present_modes_vsync : present_modes_free,
+                                                          vsync ? IM_ARRAYSIZE(present_modes_vsync) : IM_ARRAYSIZE(present_modes_free));
 }
 
 static void setup_vulkan(ImVector<const char *> instance_extensions)
@@ -90,7 +102,7 @@ static void setup_vulkan(ImVector<const char *> instance_extensions)
         IM_ASSERT(f_vkCreateDebugReportCallbackEXT != nullptr);
         VkDebugReportCallbackCreateInfoEXT debug_report_ci = {};
         debug_report_ci.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
-        debug_report_ci.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
+        debug_report_ci.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_INFORMATION_BIT_EXT;
         debug_report_ci.pfnCallback = debug_report;
         debug_report_ci.pUserData = nullptr;
         err = f_vkCreateDebugReportCallbackEXT(g_Instance, &debug_report_ci, g_Allocator, &g_DebugReport);
@@ -181,9 +193,7 @@ static void setup_vulkan_window(ImGui_ImplVulkanH_Window *wd, VkSurfaceKHR surfa
                                                               (size_t)IM_ARRAYSIZE(request_surface_image_format),
                                                               request_surface_color_space);
 
-    // Select present mode (unlimited frame rate)
-    VkPresentModeKHR present_modes[] = { VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_KHR };
-    wd->PresentMode = ImGui_ImplVulkanH_SelectPresentMode(g_PhysicalDevice, wd->Surface, present_modes, IM_ARRAYSIZE(present_modes));
+    set_present_mode(g_VSyncEnabled, wd);
 
     // Create Swapchain, Render pass, Framebuffer, etc.
     IM_ASSERT(g_MinImageCount >= 2);
@@ -363,7 +373,10 @@ int main()
     ImGui_ImplVulkan_Init(&init_info);
 
     bool show_demo_window = true;
+    bool show_options_window = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+    bool enable_vsync = false;
 
     while (!glfwWindowShouldClose(window))
     {
@@ -374,6 +387,8 @@ int main()
         glfwGetFramebufferSize(window, &fb_width, &fb_height);
         if (fb_width > 0 && fb_height > 0 && (g_SwapChainRebuild || g_MainWindowData.Width != fb_width || g_MainWindowData.Height != fb_height))
         {
+            set_present_mode(g_VSyncEnabled, wd);
+
             ImGui_ImplVulkan_SetMinImageCount(g_MinImageCount);
             ImGui_ImplVulkanH_CreateOrResizeWindow(g_Instance, g_PhysicalDevice, g_Device, &g_MainWindowData, g_QueueFamily, g_Allocator, fb_width, fb_height, g_MinImageCount);
             g_MainWindowData.FrameIndex = 0;
@@ -393,6 +408,18 @@ int main()
         if (show_demo_window)
         {
             ImGui::ShowDemoWindow(&show_demo_window);
+        }
+
+        bool prev_vsync = g_VSyncEnabled;
+        if (show_options_window)
+        {
+            ImGui::Begin("Options", &show_options_window);
+            ImGui::Checkbox("VSync", &g_VSyncEnabled);
+            ImGui::End();
+        }
+        if (g_VSyncEnabled != prev_vsync)
+        {
+            g_SwapChainRebuild = true;
         }
 
         ImGui::Render();
