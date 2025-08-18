@@ -1,4 +1,13 @@
+import subprocess
+
 def main():
+    # str = vk_physical_device_limits_str()
+    str = pipeline_cache_uuids_str()
+    print(str)
+    subprocess.run("pbcopy", universal_newlines=True, input=str)
+
+def vk_physical_device_limits_str():
+    str = ""
     func_call = "ImGui::BulletText"
     obj_name = "p.limits"
     parser = Parser(Lexer(src).tokenize())
@@ -22,14 +31,24 @@ def main():
                 is_array = next_next_token != None
                 if is_array:
                     array_count = int(parser.expect('NUMBER').value)
-                    print(f'{func_call}("{var_name} = [{", ".join([format] * array_count)}]", {", ".join(f"{obj_name}.{var_name}[{index}]" for index in range(array_count))});')
+                    str += f'{func_call}("{var_name} = [{", ".join([format] * array_count)}]", {", ".join(f"{obj_name}.{var_name}[{index}]" for index in range(array_count))});'
                 elif var_typ == 'VkBool32':
-                    print(f'{func_call}("{var_name} = {format}", {obj_name}.{var_name} ? "true" : "false");')
+                    str += f'{func_call}("{var_name} = {format}", {obj_name}.{var_name} ? "true" : "false");'
                 elif var_typ == 'VkSampleCountFlags':
-                    print(f'{func_call}("{var_name} = {format}", get_vk_sample_count_flag_names({obj_name}.{var_name}));')
+                    str += f'{func_call}("{var_name} = {format}", get_vk_sample_count_flag_names({obj_name}.{var_name}));'
                 else:
-                    print(f'{func_call}("{var_name} = {format}", {obj_name}.{var_name});')
+                    str += f'{func_call}("{var_name} = {format}", {obj_name}.{var_name});'
 
+    return str
+
+def pipeline_cache_uuids_str():
+    str = ""
+    obj_name = "properties"
+    uiud_count = 16
+
+    str += f'"Pipeline Cache UUIDs: [{', '.join(['%d'] * uiud_count)}]", {', '.join(f'{obj_name}.pipelineCacheUUID[{index}]' for index in range(uiud_count))}'
+
+    return str
 
 class Token:
     def __init__(self, kind, value):

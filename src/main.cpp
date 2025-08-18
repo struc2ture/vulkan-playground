@@ -27,7 +27,7 @@ static uint32_t g_MinImageCount = 2;
 static bool g_SwapChainRebuild = false;
 static bool g_VSyncEnabled = true;
 
-static ImVector<VkPhysicalDeviceProperties> g_GpuProperties;
+static ImVector<VkPhysicalDevice> g_Gpus;
 static int g_SelectedGpuIndex;
 
 static bool is_extension_available(const ImVector<VkExtensionProperties>& properties, const char *extension)
@@ -66,18 +66,15 @@ VkPhysicalDevice select_physical_device(VkInstance instance)
     VkResult err = vkEnumeratePhysicalDevices(instance, &gpu_count, nullptr);
     check_vk_result(err);
 
-    ImVector<VkPhysicalDevice> gpus;
-    gpus.resize(gpu_count);
-    g_GpuProperties.resize(gpu_count);
-    err = vkEnumeratePhysicalDevices(instance, &gpu_count, gpus.Data);
+    g_Gpus.resize(gpu_count);
+    err = vkEnumeratePhysicalDevices(instance, &gpu_count, g_Gpus.Data);
     check_vk_result(err);
 
     int i = 0;
-    for (VkPhysicalDevice& device : gpus)
+    for (VkPhysicalDevice& device : g_Gpus)
     {
         VkPhysicalDeviceProperties properties;
         vkGetPhysicalDeviceProperties(device, &properties);
-        g_GpuProperties.Data[i] = properties;
         if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
         {
             g_SelectedGpuIndex = i;
@@ -89,7 +86,7 @@ VkPhysicalDevice select_physical_device(VkInstance instance)
     if (gpu_count > 0)
     {
         g_SelectedGpuIndex = 0;
-        return gpus[0];
+        return g_Gpus[0];
     }
 
     return VK_NULL_HANDLE;
@@ -407,122 +404,150 @@ static void rebuild_swapchain_if_needed(ImGui_ImplVulkanH_Window *wd, GLFWwindow
     }
 }
 
-void window_device_info(VkPhysicalDeviceProperties p, int device_index)
+void window_device_info(VkPhysicalDevice device, int device_index)
 {
     const char *arrow = " <-";
     const char *no_arrow = "";
-    if (ImGui::TreeNode(p.deviceName, "%d: %s%s", device_index, p.deviceName, device_index == g_SelectedGpuIndex ? arrow : no_arrow))
-    {
-        const char * device_type = get_vk_device_type_str(p.deviceType);
-        ImGui::BulletText("Type: %s", device_type);
 
-        if (ImGui::TreeNode("Limits"))
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(device, &properties);
+
+    if (ImGui::TreeNode(properties.deviceName, "%d: %s%s", device_index, properties.deviceName, device_index == g_SelectedGpuIndex ? arrow : no_arrow))
+    {
+        if (ImGui::TreeNode("Properties"))
         {
-            ImGui::BulletText("maxImageDimension1D = %u", p.limits.maxImageDimension1D);
-            ImGui::BulletText("maxImageDimension2D = %u", p.limits.maxImageDimension2D);
-            ImGui::BulletText("maxImageDimension3D = %u", p.limits.maxImageDimension3D);
-            ImGui::BulletText("maxImageDimensionCube = %u", p.limits.maxImageDimensionCube);
-            ImGui::BulletText("maxImageArrayLayers = %u", p.limits.maxImageArrayLayers);
-            ImGui::BulletText("maxTexelBufferElements = %u", p.limits.maxTexelBufferElements);
-            ImGui::BulletText("maxUniformBufferRange = %u", p.limits.maxUniformBufferRange);
-            ImGui::BulletText("maxStorageBufferRange = %u", p.limits.maxStorageBufferRange);
-            ImGui::BulletText("maxPushConstantsSize = %u", p.limits.maxPushConstantsSize);
-            ImGui::BulletText("maxMemoryAllocationCount = %u", p.limits.maxMemoryAllocationCount);
-            ImGui::BulletText("maxSamplerAllocationCount = %u", p.limits.maxSamplerAllocationCount);
-            ImGui::BulletText("bufferImageGranularity = %llu", p.limits.bufferImageGranularity);
-            ImGui::BulletText("sparseAddressSpaceSize = %llu", p.limits.sparseAddressSpaceSize);
-            ImGui::BulletText("maxBoundDescriptorSets = %u", p.limits.maxBoundDescriptorSets);
-            ImGui::BulletText("maxPerStageDescriptorSamplers = %u", p.limits.maxPerStageDescriptorSamplers);
-            ImGui::BulletText("maxPerStageDescriptorUniformBuffers = %u", p.limits.maxPerStageDescriptorUniformBuffers);
-            ImGui::BulletText("maxPerStageDescriptorStorageBuffers = %u", p.limits.maxPerStageDescriptorStorageBuffers);
-            ImGui::BulletText("maxPerStageDescriptorSampledImages = %u", p.limits.maxPerStageDescriptorSampledImages);
-            ImGui::BulletText("maxPerStageDescriptorStorageImages = %u", p.limits.maxPerStageDescriptorStorageImages);
-            ImGui::BulletText("maxPerStageDescriptorInputAttachments = %u", p.limits.maxPerStageDescriptorInputAttachments);
-            ImGui::BulletText("maxPerStageResources = %u", p.limits.maxPerStageResources);
-            ImGui::BulletText("maxDescriptorSetSamplers = %u", p.limits.maxDescriptorSetSamplers);
-            ImGui::BulletText("maxDescriptorSetUniformBuffers = %u", p.limits.maxDescriptorSetUniformBuffers);
-            ImGui::BulletText("maxDescriptorSetUniformBuffersDynamic = %u", p.limits.maxDescriptorSetUniformBuffersDynamic);
-            ImGui::BulletText("maxDescriptorSetStorageBuffers = %u", p.limits.maxDescriptorSetStorageBuffers);
-            ImGui::BulletText("maxDescriptorSetStorageBuffersDynamic = %u", p.limits.maxDescriptorSetStorageBuffersDynamic);
-            ImGui::BulletText("maxDescriptorSetSampledImages = %u", p.limits.maxDescriptorSetSampledImages);
-            ImGui::BulletText("maxDescriptorSetStorageImages = %u", p.limits.maxDescriptorSetStorageImages);
-            ImGui::BulletText("maxDescriptorSetInputAttachments = %u", p.limits.maxDescriptorSetInputAttachments);
-            ImGui::BulletText("maxVertexInputAttributes = %u", p.limits.maxVertexInputAttributes);
-            ImGui::BulletText("maxVertexInputBindings = %u", p.limits.maxVertexInputBindings);
-            ImGui::BulletText("maxVertexInputAttributeOffset = %u", p.limits.maxVertexInputAttributeOffset);
-            ImGui::BulletText("maxVertexInputBindingStride = %u", p.limits.maxVertexInputBindingStride);
-            ImGui::BulletText("maxVertexOutputComponents = %u", p.limits.maxVertexOutputComponents);
-            ImGui::BulletText("maxTessellationGenerationLevel = %u", p.limits.maxTessellationGenerationLevel);
-            ImGui::BulletText("maxTessellationPatchSize = %u", p.limits.maxTessellationPatchSize);
-            ImGui::BulletText("maxTessellationControlPerVertexInputComponents = %u", p.limits.maxTessellationControlPerVertexInputComponents);
-            ImGui::BulletText("maxTessellationControlPerVertexOutputComponents = %u", p.limits.maxTessellationControlPerVertexOutputComponents);
-            ImGui::BulletText("maxTessellationControlPerPatchOutputComponents = %u", p.limits.maxTessellationControlPerPatchOutputComponents);
-            ImGui::BulletText("maxTessellationControlTotalOutputComponents = %u", p.limits.maxTessellationControlTotalOutputComponents);
-            ImGui::BulletText("maxTessellationEvaluationInputComponents = %u", p.limits.maxTessellationEvaluationInputComponents);
-            ImGui::BulletText("maxTessellationEvaluationOutputComponents = %u", p.limits.maxTessellationEvaluationOutputComponents);
-            ImGui::BulletText("maxGeometryShaderInvocations = %u", p.limits.maxGeometryShaderInvocations);
-            ImGui::BulletText("maxGeometryInputComponents = %u", p.limits.maxGeometryInputComponents);
-            ImGui::BulletText("maxGeometryOutputComponents = %u", p.limits.maxGeometryOutputComponents);
-            ImGui::BulletText("maxGeometryOutputVertices = %u", p.limits.maxGeometryOutputVertices);
-            ImGui::BulletText("maxGeometryTotalOutputComponents = %u", p.limits.maxGeometryTotalOutputComponents);
-            ImGui::BulletText("maxFragmentInputComponents = %u", p.limits.maxFragmentInputComponents);
-            ImGui::BulletText("maxFragmentOutputAttachments = %u", p.limits.maxFragmentOutputAttachments);
-            ImGui::BulletText("maxFragmentDualSrcAttachments = %u", p.limits.maxFragmentDualSrcAttachments);
-            ImGui::BulletText("maxFragmentCombinedOutputResources = %u", p.limits.maxFragmentCombinedOutputResources);
-            ImGui::BulletText("maxComputeSharedMemorySize = %u", p.limits.maxComputeSharedMemorySize);
-            ImGui::BulletText("maxComputeWorkGroupCount = [%u, %u, %u]", p.limits.maxComputeWorkGroupCount[0], p.limits.maxComputeWorkGroupCount[1], p.limits.maxComputeWorkGroupCount[2]);
-            ImGui::BulletText("maxComputeWorkGroupInvocations = %u", p.limits.maxComputeWorkGroupInvocations);
-            ImGui::BulletText("maxComputeWorkGroupSize = [%u, %u, %u]", p.limits.maxComputeWorkGroupSize[0], p.limits.maxComputeWorkGroupSize[1], p.limits.maxComputeWorkGroupSize[2]);
-            ImGui::BulletText("subPixelPrecisionBits = %u", p.limits.subPixelPrecisionBits);
-            ImGui::BulletText("subTexelPrecisionBits = %u", p.limits.subTexelPrecisionBits);
-            ImGui::BulletText("mipmapPrecisionBits = %u", p.limits.mipmapPrecisionBits);
-            ImGui::BulletText("maxDrawIndexedIndexValue = %u", p.limits.maxDrawIndexedIndexValue);
-            ImGui::BulletText("maxDrawIndirectCount = %u", p.limits.maxDrawIndirectCount);
-            ImGui::BulletText("maxSamplerLodBias = %0.3f", p.limits.maxSamplerLodBias);
-            ImGui::BulletText("maxSamplerAnisotropy = %0.3f", p.limits.maxSamplerAnisotropy);
-            ImGui::BulletText("maxViewports = %u", p.limits.maxViewports);
-            ImGui::BulletText("maxViewportDimensions = [%u, %u]", p.limits.maxViewportDimensions[0], p.limits.maxViewportDimensions[1]);
-            ImGui::BulletText("viewportBoundsRange = [%0.3f, %0.3f]", p.limits.viewportBoundsRange[0], p.limits.viewportBoundsRange[1]);
-            ImGui::BulletText("viewportSubPixelBits = %u", p.limits.viewportSubPixelBits);
-            ImGui::BulletText("minTexelBufferOffsetAlignment = %llu", p.limits.minTexelBufferOffsetAlignment);
-            ImGui::BulletText("minUniformBufferOffsetAlignment = %llu", p.limits.minUniformBufferOffsetAlignment);
-            ImGui::BulletText("minStorageBufferOffsetAlignment = %llu", p.limits.minStorageBufferOffsetAlignment);
-            ImGui::BulletText("minTexelOffset = %d", p.limits.minTexelOffset);
-            ImGui::BulletText("maxTexelOffset = %u", p.limits.maxTexelOffset);
-            ImGui::BulletText("minTexelGatherOffset = %d", p.limits.minTexelGatherOffset);
-            ImGui::BulletText("maxTexelGatherOffset = %u", p.limits.maxTexelGatherOffset);
-            ImGui::BulletText("minInterpolationOffset = %0.3f", p.limits.minInterpolationOffset);
-            ImGui::BulletText("maxInterpolationOffset = %0.3f", p.limits.maxInterpolationOffset);
-            ImGui::BulletText("subPixelInterpolationOffsetBits = %u", p.limits.subPixelInterpolationOffsetBits);
-            ImGui::BulletText("maxFramebufferWidth = %u", p.limits.maxFramebufferWidth);
-            ImGui::BulletText("maxFramebufferHeight = %u", p.limits.maxFramebufferHeight);
-            ImGui::BulletText("maxFramebufferLayers = %u", p.limits.maxFramebufferLayers);
-            ImGui::BulletText("framebufferColorSampleCounts = %s", get_vk_sample_count_flag_names(p.limits.framebufferColorSampleCounts));
-            ImGui::BulletText("framebufferDepthSampleCounts = %s", get_vk_sample_count_flag_names(p.limits.framebufferDepthSampleCounts));
-            ImGui::BulletText("framebufferStencilSampleCounts = %s", get_vk_sample_count_flag_names(p.limits.framebufferStencilSampleCounts));
-            ImGui::BulletText("framebufferNoAttachmentsSampleCounts = %s", get_vk_sample_count_flag_names(p.limits.framebufferNoAttachmentsSampleCounts));
-            ImGui::BulletText("maxColorAttachments = %u", p.limits.maxColorAttachments);
-            ImGui::BulletText("sampledImageColorSampleCounts = %s", get_vk_sample_count_flag_names(p.limits.sampledImageColorSampleCounts));
-            ImGui::BulletText("sampledImageIntegerSampleCounts = %s", get_vk_sample_count_flag_names(p.limits.sampledImageIntegerSampleCounts));
-            ImGui::BulletText("sampledImageDepthSampleCounts = %s", get_vk_sample_count_flag_names(p.limits.sampledImageDepthSampleCounts));
-            ImGui::BulletText("sampledImageStencilSampleCounts = %s", get_vk_sample_count_flag_names(p.limits.sampledImageStencilSampleCounts));
-            ImGui::BulletText("storageImageSampleCounts = %s", get_vk_sample_count_flag_names(p.limits.storageImageSampleCounts));
-            ImGui::BulletText("maxSampleMaskWords = %u", p.limits.maxSampleMaskWords);
-            ImGui::BulletText("timestampComputeAndGraphics = %s", p.limits.timestampComputeAndGraphics ? "true" : "false");
-            ImGui::BulletText("timestampPeriod = %0.3f", p.limits.timestampPeriod);
-            ImGui::BulletText("maxClipDistances = %u", p.limits.maxClipDistances);
-            ImGui::BulletText("maxCullDistances = %u", p.limits.maxCullDistances);
-            ImGui::BulletText("maxCombinedClipAndCullDistances = %u", p.limits.maxCombinedClipAndCullDistances);
-            ImGui::BulletText("discreteQueuePriorities = %u", p.limits.discreteQueuePriorities);
-            ImGui::BulletText("pointSizeRange = [%0.3f, %0.3f]", p.limits.pointSizeRange[0], p.limits.pointSizeRange[1]);
-            ImGui::BulletText("lineWidthRange = [%0.3f, %0.3f]", p.limits.lineWidthRange[0], p.limits.lineWidthRange[1]);
-            ImGui::BulletText("pointSizeGranularity = %0.3f", p.limits.pointSizeGranularity);
-            ImGui::BulletText("lineWidthGranularity = %0.3f", p.limits.lineWidthGranularity);
-            ImGui::BulletText("strictLines = %s", p.limits.strictLines ? "true" : "false");
-            ImGui::BulletText("standardSampleLocations = %s", p.limits.standardSampleLocations ? "true" : "false");
-            ImGui::BulletText("optimalBufferCopyOffsetAlignment = %llu", p.limits.optimalBufferCopyOffsetAlignment);
-            ImGui::BulletText("optimalBufferCopyRowPitchAlignment = %llu", p.limits.optimalBufferCopyRowPitchAlignment);
-            ImGui::BulletText("nonCoherentAtomSize = %llu", p.limits.nonCoherentAtomSize);
+            ImGui::BulletText("API version: %u", properties.apiVersion);
+            ImGui::BulletText("Driver version: %u", properties.driverVersion);
+            ImGui::BulletText("Vendor ID: %u", properties.vendorID);
+            ImGui::BulletText("Device ID: %u", properties.deviceID);
+
+            const char * device_type = get_vk_device_type_str(properties.deviceType);
+            ImGui::BulletText("Type: %s", device_type);
+
+            if (ImGui::TreeNode("Limits"))
+            {
+                ImGui::BulletText("maxImageDimension1D = %u", properties.limits.maxImageDimension1D);
+                ImGui::BulletText("maxImageDimension2D = %u", properties.limits.maxImageDimension2D);
+                ImGui::BulletText("maxImageDimension3D = %u", properties.limits.maxImageDimension3D);
+                ImGui::BulletText("maxImageDimensionCube = %u", properties.limits.maxImageDimensionCube);
+                ImGui::BulletText("maxImageArrayLayers = %u", properties.limits.maxImageArrayLayers);
+                ImGui::BulletText("maxTexelBufferElements = %u", properties.limits.maxTexelBufferElements);
+                ImGui::BulletText("maxUniformBufferRange = %u", properties.limits.maxUniformBufferRange);
+                ImGui::BulletText("maxStorageBufferRange = %u", properties.limits.maxStorageBufferRange);
+                ImGui::BulletText("maxPushConstantsSize = %u", properties.limits.maxPushConstantsSize);
+                ImGui::BulletText("maxMemoryAllocationCount = %u", properties.limits.maxMemoryAllocationCount);
+                ImGui::BulletText("maxSamplerAllocationCount = %u", properties.limits.maxSamplerAllocationCount);
+                ImGui::BulletText("bufferImageGranularity = %llu", properties.limits.bufferImageGranularity);
+                ImGui::BulletText("sparseAddressSpaceSize = %llu", properties.limits.sparseAddressSpaceSize);
+                ImGui::BulletText("maxBoundDescriptorSets = %u", properties.limits.maxBoundDescriptorSets);
+                ImGui::BulletText("maxPerStageDescriptorSamplers = %u", properties.limits.maxPerStageDescriptorSamplers);
+                ImGui::BulletText("maxPerStageDescriptorUniformBuffers = %u", properties.limits.maxPerStageDescriptorUniformBuffers);
+                ImGui::BulletText("maxPerStageDescriptorStorageBuffers = %u", properties.limits.maxPerStageDescriptorStorageBuffers);
+                ImGui::BulletText("maxPerStageDescriptorSampledImages = %u", properties.limits.maxPerStageDescriptorSampledImages);
+                ImGui::BulletText("maxPerStageDescriptorStorageImages = %u", properties.limits.maxPerStageDescriptorStorageImages);
+                ImGui::BulletText("maxPerStageDescriptorInputAttachments = %u", properties.limits.maxPerStageDescriptorInputAttachments);
+                ImGui::BulletText("maxPerStageResources = %u", properties.limits.maxPerStageResources);
+                ImGui::BulletText("maxDescriptorSetSamplers = %u", properties.limits.maxDescriptorSetSamplers);
+                ImGui::BulletText("maxDescriptorSetUniformBuffers = %u", properties.limits.maxDescriptorSetUniformBuffers);
+                ImGui::BulletText("maxDescriptorSetUniformBuffersDynamic = %u", properties.limits.maxDescriptorSetUniformBuffersDynamic);
+                ImGui::BulletText("maxDescriptorSetStorageBuffers = %u", properties.limits.maxDescriptorSetStorageBuffers);
+                ImGui::BulletText("maxDescriptorSetStorageBuffersDynamic = %u", properties.limits.maxDescriptorSetStorageBuffersDynamic);
+                ImGui::BulletText("maxDescriptorSetSampledImages = %u", properties.limits.maxDescriptorSetSampledImages);
+                ImGui::BulletText("maxDescriptorSetStorageImages = %u", properties.limits.maxDescriptorSetStorageImages);
+                ImGui::BulletText("maxDescriptorSetInputAttachments = %u", properties.limits.maxDescriptorSetInputAttachments);
+                ImGui::BulletText("maxVertexInputAttributes = %u", properties.limits.maxVertexInputAttributes);
+                ImGui::BulletText("maxVertexInputBindings = %u", properties.limits.maxVertexInputBindings);
+                ImGui::BulletText("maxVertexInputAttributeOffset = %u", properties.limits.maxVertexInputAttributeOffset);
+                ImGui::BulletText("maxVertexInputBindingStride = %u", properties.limits.maxVertexInputBindingStride);
+                ImGui::BulletText("maxVertexOutputComponents = %u", properties.limits.maxVertexOutputComponents);
+                ImGui::BulletText("maxTessellationGenerationLevel = %u", properties.limits.maxTessellationGenerationLevel);
+                ImGui::BulletText("maxTessellationPatchSize = %u", properties.limits.maxTessellationPatchSize);
+                ImGui::BulletText("maxTessellationControlPerVertexInputComponents = %u", properties.limits.maxTessellationControlPerVertexInputComponents);
+                ImGui::BulletText("maxTessellationControlPerVertexOutputComponents = %u", properties.limits.maxTessellationControlPerVertexOutputComponents);
+                ImGui::BulletText("maxTessellationControlPerPatchOutputComponents = %u", properties.limits.maxTessellationControlPerPatchOutputComponents);
+                ImGui::BulletText("maxTessellationControlTotalOutputComponents = %u", properties.limits.maxTessellationControlTotalOutputComponents);
+                ImGui::BulletText("maxTessellationEvaluationInputComponents = %u", properties.limits.maxTessellationEvaluationInputComponents);
+                ImGui::BulletText("maxTessellationEvaluationOutputComponents = %u", properties.limits.maxTessellationEvaluationOutputComponents);
+                ImGui::BulletText("maxGeometryShaderInvocations = %u", properties.limits.maxGeometryShaderInvocations);
+                ImGui::BulletText("maxGeometryInputComponents = %u", properties.limits.maxGeometryInputComponents);
+                ImGui::BulletText("maxGeometryOutputComponents = %u", properties.limits.maxGeometryOutputComponents);
+                ImGui::BulletText("maxGeometryOutputVertices = %u", properties.limits.maxGeometryOutputVertices);
+                ImGui::BulletText("maxGeometryTotalOutputComponents = %u", properties.limits.maxGeometryTotalOutputComponents);
+                ImGui::BulletText("maxFragmentInputComponents = %u", properties.limits.maxFragmentInputComponents);
+                ImGui::BulletText("maxFragmentOutputAttachments = %u", properties.limits.maxFragmentOutputAttachments);
+                ImGui::BulletText("maxFragmentDualSrcAttachments = %u", properties.limits.maxFragmentDualSrcAttachments);
+                ImGui::BulletText("maxFragmentCombinedOutputResources = %u", properties.limits.maxFragmentCombinedOutputResources);
+                ImGui::BulletText("maxComputeSharedMemorySize = %u", properties.limits.maxComputeSharedMemorySize);
+                ImGui::BulletText("maxComputeWorkGroupCount = [%u, %u, %u]", properties.limits.maxComputeWorkGroupCount[0], properties.limits.maxComputeWorkGroupCount[1], properties.limits.maxComputeWorkGroupCount[2]);
+                ImGui::BulletText("maxComputeWorkGroupInvocations = %u", properties.limits.maxComputeWorkGroupInvocations);
+                ImGui::BulletText("maxComputeWorkGroupSize = [%u, %u, %u]", properties.limits.maxComputeWorkGroupSize[0], properties.limits.maxComputeWorkGroupSize[1], properties.limits.maxComputeWorkGroupSize[2]);
+                ImGui::BulletText("subPixelPrecisionBits = %u", properties.limits.subPixelPrecisionBits);
+                ImGui::BulletText("subTexelPrecisionBits = %u", properties.limits.subTexelPrecisionBits);
+                ImGui::BulletText("mipmapPrecisionBits = %u", properties.limits.mipmapPrecisionBits);
+                ImGui::BulletText("maxDrawIndexedIndexValue = %u", properties.limits.maxDrawIndexedIndexValue);
+                ImGui::BulletText("maxDrawIndirectCount = %u", properties.limits.maxDrawIndirectCount);
+                ImGui::BulletText("maxSamplerLodBias = %0.3f", properties.limits.maxSamplerLodBias);
+                ImGui::BulletText("maxSamplerAnisotropy = %0.3f", properties.limits.maxSamplerAnisotropy);
+                ImGui::BulletText("maxViewports = %u", properties.limits.maxViewports);
+                ImGui::BulletText("maxViewportDimensions = [%u, %u]", properties.limits.maxViewportDimensions[0], properties.limits.maxViewportDimensions[1]);
+                ImGui::BulletText("viewportBoundsRange = [%0.3f, %0.3f]", properties.limits.viewportBoundsRange[0], properties.limits.viewportBoundsRange[1]);
+                ImGui::BulletText("viewportSubPixelBits = %u", properties.limits.viewportSubPixelBits);
+                ImGui::BulletText("minTexelBufferOffsetAlignment = %llu", properties.limits.minTexelBufferOffsetAlignment);
+                ImGui::BulletText("minUniformBufferOffsetAlignment = %llu", properties.limits.minUniformBufferOffsetAlignment);
+                ImGui::BulletText("minStorageBufferOffsetAlignment = %llu", properties.limits.minStorageBufferOffsetAlignment);
+                ImGui::BulletText("minTexelOffset = %d", properties.limits.minTexelOffset);
+                ImGui::BulletText("maxTexelOffset = %u", properties.limits.maxTexelOffset);
+                ImGui::BulletText("minTexelGatherOffset = %d", properties.limits.minTexelGatherOffset);
+                ImGui::BulletText("maxTexelGatherOffset = %u", properties.limits.maxTexelGatherOffset);
+                ImGui::BulletText("minInterpolationOffset = %0.3f", properties.limits.minInterpolationOffset);
+                ImGui::BulletText("maxInterpolationOffset = %0.3f", properties.limits.maxInterpolationOffset);
+                ImGui::BulletText("subPixelInterpolationOffsetBits = %u", properties.limits.subPixelInterpolationOffsetBits);
+                ImGui::BulletText("maxFramebufferWidth = %u", properties.limits.maxFramebufferWidth);
+                ImGui::BulletText("maxFramebufferHeight = %u", properties.limits.maxFramebufferHeight);
+                ImGui::BulletText("maxFramebufferLayers = %u", properties.limits.maxFramebufferLayers);
+                ImGui::BulletText("framebufferColorSampleCounts = %s", get_vk_sample_count_flag_names(properties.limits.framebufferColorSampleCounts));
+                ImGui::BulletText("framebufferDepthSampleCounts = %s", get_vk_sample_count_flag_names(properties.limits.framebufferDepthSampleCounts));
+                ImGui::BulletText("framebufferStencilSampleCounts = %s", get_vk_sample_count_flag_names(properties.limits.framebufferStencilSampleCounts));
+                ImGui::BulletText("framebufferNoAttachmentsSampleCounts = %s", get_vk_sample_count_flag_names(properties.limits.framebufferNoAttachmentsSampleCounts));
+                ImGui::BulletText("maxColorAttachments = %u", properties.limits.maxColorAttachments);
+                ImGui::BulletText("sampledImageColorSampleCounts = %s", get_vk_sample_count_flag_names(properties.limits.sampledImageColorSampleCounts));
+                ImGui::BulletText("sampledImageIntegerSampleCounts = %s", get_vk_sample_count_flag_names(properties.limits.sampledImageIntegerSampleCounts));
+                ImGui::BulletText("sampledImageDepthSampleCounts = %s", get_vk_sample_count_flag_names(properties.limits.sampledImageDepthSampleCounts));
+                ImGui::BulletText("sampledImageStencilSampleCounts = %s", get_vk_sample_count_flag_names(properties.limits.sampledImageStencilSampleCounts));
+                ImGui::BulletText("storageImageSampleCounts = %s", get_vk_sample_count_flag_names(properties.limits.storageImageSampleCounts));
+                ImGui::BulletText("maxSampleMaskWords = %u", properties.limits.maxSampleMaskWords);
+                ImGui::BulletText("timestampComputeAndGraphics = %s", properties.limits.timestampComputeAndGraphics ? "true" : "false");
+                ImGui::BulletText("timestampPeriod = %0.3f", properties.limits.timestampPeriod);
+                ImGui::BulletText("maxClipDistances = %u", properties.limits.maxClipDistances);
+                ImGui::BulletText("maxCullDistances = %u", properties.limits.maxCullDistances);
+                ImGui::BulletText("maxCombinedClipAndCullDistances = %u", properties.limits.maxCombinedClipAndCullDistances);
+                ImGui::BulletText("discreteQueuePriorities = %u", properties.limits.discreteQueuePriorities);
+                ImGui::BulletText("pointSizeRange = [%0.3f, %0.3f]", properties.limits.pointSizeRange[0], properties.limits.pointSizeRange[1]);
+                ImGui::BulletText("lineWidthRange = [%0.3f, %0.3f]", properties.limits.lineWidthRange[0], properties.limits.lineWidthRange[1]);
+                ImGui::BulletText("pointSizeGranularity = %0.3f", properties.limits.pointSizeGranularity);
+                ImGui::BulletText("lineWidthGranularity = %0.3f", properties.limits.lineWidthGranularity);
+                ImGui::BulletText("strictLines = %s", properties.limits.strictLines ? "true" : "false");
+                ImGui::BulletText("standardSampleLocations = %s", properties.limits.standardSampleLocations ? "true" : "false");
+                ImGui::BulletText("optimalBufferCopyOffsetAlignment = %llu", properties.limits.optimalBufferCopyOffsetAlignment);
+                ImGui::BulletText("optimalBufferCopyRowPitchAlignment = %llu", properties.limits.optimalBufferCopyRowPitchAlignment);
+                ImGui::BulletText("nonCoherentAtomSize = %llu", properties.limits.nonCoherentAtomSize);
+
+                ImGui::TreePop();
+            }
+
+            ImGui::BulletText("Device Name: %s", properties.deviceName);
+
+            ImGui::BulletText("Pipeline Cache UUIDs: [%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d]", properties.pipelineCacheUUID[0], properties.pipelineCacheUUID[1], properties.pipelineCacheUUID[2], properties.pipelineCacheUUID[3], properties.pipelineCacheUUID[4], properties.pipelineCacheUUID[5], properties.pipelineCacheUUID[6], properties.pipelineCacheUUID[7], properties.pipelineCacheUUID[8], properties.pipelineCacheUUID[9], properties.pipelineCacheUUID[10], properties.pipelineCacheUUID[11], properties.pipelineCacheUUID[12], properties.pipelineCacheUUID[13], properties.pipelineCacheUUID[14], properties.pipelineCacheUUID[15]);
+
+            if (ImGui::TreeNode("Sparse properties"))
+            {
+                ImGui::BulletText("residencyStandard2DBlockShape = %s", properties.sparseProperties.residencyStandard2DBlockShape ? "true" : "false");
+                ImGui::BulletText("residencyStandard2DMultisampleBlockShape = %s", properties.sparseProperties.residencyStandard2DMultisampleBlockShape ? "true" : "false");
+                ImGui::BulletText("residencyStandard3DBlockShape = %s", properties.sparseProperties.residencyStandard3DBlockShape ? "true" : "false");
+                ImGui::BulletText("residencyAlignedMipSize = %s", properties.sparseProperties.residencyAlignedMipSize ? "true" : "false");
+                ImGui::BulletText("residencyNonResidentStrict = %s", properties.sparseProperties.residencyNonResidentStrict ? "true" : "false");
+                ImGui::TreePop();
+            }
 
             ImGui::TreePop();
         }
@@ -539,9 +564,9 @@ void window_info(bool *show_info_window)
         if (ImGui::TreeNode("Available GPUs"))
         {
             int i = 0;
-            for (VkPhysicalDeviceProperties& gpu_properties : g_GpuProperties)
+            for (VkPhysicalDevice& device : g_Gpus)
             {
-                window_device_info(gpu_properties, i);
+                window_device_info(device, i);
                 i++;
             }
             ImGui::TreePop();
