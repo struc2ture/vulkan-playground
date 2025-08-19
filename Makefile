@@ -13,8 +13,14 @@ export DYLD_LIBRARY_PATH = /usr/local/lib:$DYLD_LIBRARY_PATH
 
 build: bin/playground
 
-bin/playground: src/main.cpp
+bin/playground: src/main.cpp src/tri.cpp src/helpers.hpp bin/shaders/tri.vert.spv bin/shaders/tri.frag.spv
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(IMGUI_SRC) -o $@
+
+bin/shaders/tri.vert.spv: src/shaders/tri.vert
+	glslc $< -o $@
+
+bin/shaders/tri.frag.spv: src/shaders/tri.frag
+	glslc $< -o $@
 
 run: build
 	lldb bin/playground -o run
@@ -22,5 +28,6 @@ run: build
 clean:
 	rm -rf bin
 	mkdir bin
+	mkdir bin/shaders
 
 .PHONY: build run clean

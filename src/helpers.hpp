@@ -43,3 +43,11 @@ static void *xcalloc(size_t size)
         fatal("Calloc failed");
     return result;
 }
+
+static FILE *xfopen(const char *path, const char *mode)
+{
+    FILE *f = fopen(path, mode);
+    if (!f)
+        fatal("fopen failed");
+    return f;
+}
