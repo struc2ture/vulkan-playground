@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cstring>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
@@ -9,12 +10,6 @@ struct Vertex
 {
     float pos[2];
     float color[3];
-};
-
-static const Vertex g_TriangleVerts[] = {
-    { {  0.0f, -0.5f }, {1.0f, 0.0f, 0.0f} },
-    { {  0.5f,  0.5f }, {0.0f, 1.0f, 0.0f} },
-    { { -0.5f,  0.5f }, {0.0f, 0.0f, 1.0f} },
 };
 
 VkShaderModule create_shader_module(const char *path, VkDevice device)
@@ -145,4 +140,69 @@ VkPipeline create_pipeline(VkDevice device, VkRenderPass render_pass, uint32_t w
     check_vk_result(err);
 
     return pipeline;
+}
+
+uint32_t find_memory_type(VkPhysicalDevice physical_device, uint32_t type_filter, VkMemoryPropertyFlags props)
+{
+    VkPhysicalDeviceMemoryProperties mem_props;
+    vkGetPhysicalDeviceMemoryProperties(physical_device, &mem_props);
+    for (uint32_t i = 0; i < mem_props.memoryTypeCount; i++)
+    {
+        if ((type_filter & (1 << i)) &&
+            (mem_props.memoryTypes[i].propertyFlags & props) == props)
+        {
+            return i;
+        }
+    }
+    fatal("Failed to find suitable memory type");
+    return 0;
+}
+
+VkBuffer create_vertex_buffer(VkDevice device, VkPhysicalDevice physical_device)
+{
+    const Vertex verts[] = {
+        { {  0.0f, -0.5f }, {1.0f, 0.0f, 0.0f} },
+        { {  0.5f,  0.5f }, {0.0f, 1.0f, 0.0f} },
+        { { -0.5f,  0.5f }, {0.0f, 0.0f, 1.0f} },
+    };
+
+    VkDeviceSize buffer_size = sizeof(verts);
+
+    VkBufferCreateInfo buffer_info = {};
+    buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_info.size = buffer_size;
+    buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VkBuffer vertex_buffer;
+    VkResult err = vkCreateBuffer(device, &buffer_info, nullptr, &vertex_buffer);
+    check_vk_result(err);
+
+    // Allocate memory
+    VkMemoryRequirements mem_reqs;
+    vkGetBufferMemoryRequirements(device, vertex_buffer, &mem_reqs);
+    uint32_t mem_type_index = find_memory_type(
+        physical_device,
+        mem_reqs.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
+    VkMemoryAllocateInfo alloc_info = {};
+    alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc_info.allocationSize = mem_reqs.size;
+    alloc_info.memoryTypeIndex = mem_type_index;
+
+    VkDeviceMemory vertex_memory;
+    err = vkAllocateMemory(device, &alloc_info, NULL, &vertex_memory);
+    check_vk_result(err);
+
+    // Upload data
+    void *data;
+    vkMapMemory(device, vertex_memory, 0, buffer_size, 0, &data);
+    memcpy(data, verts, (size_t)buffer_size);
+    vkUnmapMemory(device, vertex_memory);
+
+    err = vkBindBufferMemory(device, vertex_buffer, vertex_memory, 0);
+    check_vk_result(err);
+
+    return vertex_buffer;
 }

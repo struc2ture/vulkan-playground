@@ -32,6 +32,10 @@ static bool g_VSyncEnabled = true;
 static ImVector<VkPhysicalDevice> g_Gpus;
 static int g_SelectedGpuIndex;
 
+static VkPipeline g_TriPipeline = VK_NULL_HANDLE;
+static VkBuffer g_TriVertexBuffer = VK_NULL_HANDLE;
+
+
 static bool is_extension_available(const ImVector<VkExtensionProperties>& properties, const char *extension)
 {
     for (const VkExtensionProperties& p: properties)
@@ -338,6 +342,11 @@ static void frame_render(ImGui_ImplVulkanH_Window *wd, ImDrawData *draw_data)
         vkCmdBeginRenderPass(fd->CommandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE);
     }
 
+    VkDeviceSize offsets = 0;
+    vkCmdBindPipeline(fd->CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, g_TriPipeline);
+    vkCmdBindVertexBuffers(fd->CommandBuffer, 0, 1, &g_TriVertexBuffer, &offsets);
+    vkCmdDraw(fd->CommandBuffer, 3, 1, 0, 0);
+
     // Record dear imgui primitives into command buffer
     ImGui_ImplVulkan_RenderDrawData(draw_data, fd->CommandBuffer);
 
@@ -640,7 +649,8 @@ int main()
 
     bool enable_vsync = false;
 
-    VkPipeline tri_pipeline = create_pipeline(g_Device, wd->RenderPass, wd->Width, wd->Height);
+    g_TriPipeline = create_pipeline(g_Device, wd->RenderPass, wd->Width, wd->Height);
+    g_TriVertexBuffer = create_vertex_buffer(g_Device, g_PhysicalDevice);
 
     while (!glfwWindowShouldClose(window))
     {
