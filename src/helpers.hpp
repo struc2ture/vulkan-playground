@@ -27,3 +27,19 @@ static void check_vk_result_fn(VkResult err)
     if (err < 0)
         abort();
 }
+
+static void *xmalloc(size_t size)
+{
+    void *result = malloc(size);
+    if (!result)
+        fatal("Malloc failed");
+    return result;
+}
+
+static void *xcalloc(size_t size)
+{
+    void *result = calloc(1, size);
+    if (!result)
+        fatal("Calloc failed");
+    return result;
+}

@@ -11,6 +11,8 @@
 
 #include "helpers.hpp"
 
+#include "tri.cpp"
+
 static VkDebugReportCallbackEXT g_DebugReport = VK_NULL_HANDLE;
 
 static VkAllocationCallbacks *g_Allocator = nullptr;
@@ -573,8 +575,6 @@ void window_info(bool *show_info_window)
         }
         ImGui::End();
     }
-
-
 }
 
 int main()
@@ -638,6 +638,8 @@ int main()
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     bool enable_vsync = false;
+
+    VkPipeline tri_pipeline = create_pipeline(g_Device, wd->RenderPass, wd->Width, wd->Height);
 
     while (!glfwWindowShouldClose(window))
     {
